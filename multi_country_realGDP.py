@@ -1,35 +1,46 @@
-# 各国の実質GDP推移を同一グラフ上で比較表示するコード
-
-from datetime import datetime
-import pandas_datareader.data as web
+import datetime
+import pandas as pd
 import matplotlib.pyplot as plt
+import pandas_datareader.data as web
 
-# 分析期間
-start = datetime(1990, 1, 1)
-end = datetime(2025, 1, 1)
+# 期間設定
+start = datetime.datetime(1990, 1, 1)
+end = datetime.datetime(2024, 12, 31)
 
-# OECD基準の実質GDP系列（2015=100、季節調整済指数）
-# 各国で整合性が取れるように OECD の “MEI” シリーズを使用
-countries = {
-    'United Kingdom': 'GDPGBPQDSMEI',
-    'United States': 'GDPUSQDSMEI',
-    'Germany': 'GDPDEUQDSMEI',
-    'Japan': 'GDPJPQDSMEI'
+# 各国のFREDコード
+codes = {
+    'United Kingdom': 'CLVMNACSCAB1GQUK',  # 実質GDP（2015=100）
+    'United States': 'GDPC1',              # 実質GDP（10億ドル）
+    'Germany': 'CLVMNACSCAB1GQDE',         # 実質GDP（2015=100）
+    'Japan': 'JPNRGDPEXP'                  # 実質GDP（実額, 代替コード）
 }
 
-# データ格納用
-gdp_data = {}
-
-# 各国のGDPデータを取得
-for country, code in countries.items():
+# データ取得
+df = pd.DataFrame()
+for country, code in codes.items():
     try:
         data = web.DataReader(code, 'fred', start, end)
-        gdp_data[country] = data
-        print(f"{country} data retrieved successfully ({len(data)} observations)")
+        df[country] = data[code]
+        print(f"✅ Loaded: {country} ({len(data)} observations)")
     except Exception as e:
-        print(f"Error retrieving {country}: {e}")
+        print(f"⚠️ Error loading {country}: {e}")
 
+# 欠損を補間
+df = df.interpolate()
 
+# 2015年を基準に指数化
+nearest = df.index.get_indexer([pd.Timestamp('2015-01-01')], method='nearest')[0]
+df = df / df.iloc[nearest] * 100
 
-for country, data in gdp_data.items():
-    print(f"{country}: {data.shape}")
+# プロット
+plt.figure(figsize=(10, 6))
+for country in df.columns:
+    plt.plot(df.index, df[country], label=country)
+
+plt.title('Real GDP (Indexed to 2015 = 100, Quarterly, FRED)')
+plt.xlabel('Year')
+plt.ylabel('Index (2015 = 100)')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
